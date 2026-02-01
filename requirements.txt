@@ -1,0 +1,11 @@
+pandas
+numpy
+requests
+bs4
+markdown
+llama-index
+azure-storage-blob
+azure-identity
+azure-identity
+python-dotenv
+pdfplumber
