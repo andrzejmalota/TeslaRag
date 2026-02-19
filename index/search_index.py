@@ -1,9 +1,16 @@
 """
-Search index module.
+Search index module — delegates to the configured search provider.
 """
+import os
 
-# TODO: Implement vector store indexing logic
+from providers import get_search_provider
+
+INDEX_NAME = os.environ.get("SEARCH_INDEX_NAME", "tesla-manual-v1")
+
 
 def upsert_embeddings(embedded_chunks: list[dict]) -> None:
-    """Upserts embedded chunks into the search index."""
-    pass
+    """Upsert embedded chunks into the configured search index."""
+    if not embedded_chunks:
+        return
+    provider = get_search_provider()
+    provider.upsert_documents(embedded_chunks)

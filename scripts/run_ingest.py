@@ -1,14 +1,15 @@
 """
 Ingestion pipeline orchestrator.
 
-Local PDF / Azure Blob → Extract → Normalize → Chunk → JSON → Embed → Index
+Local PDF / Object Storage → Extract → Normalize → Chunk → JSON → Embed → Index
 """
 from pathlib import Path
 
 from ingest.extract import extract_text_from_pdf, ExtractedDocument
 from ingest.chunk import normalize_text, chunk_text, save_chunks_to_json, Chunk
 from ingest.embed import embed_chunks, EmbeddedChunk
-from ingest.blob import upload_pdf, download_blob, list_blobs, BlobInfo
+from providers import get_storage_provider
+from providers.storage.base import ObjectInfo
 from index.search_index import upsert_embeddings
 import logging
 
@@ -45,31 +46,28 @@ def ingest_document(pdf_path: Path, save_chunks: bool = True) -> list[EmbeddedCh
     # return embedded_chunks
 
 
-def ingest_from_blob(blob_name: str, container: str = "documents") -> list[EmbeddedChunk]:
-    """Ingest a PDF directly from Azure Blob Storage."""
-    # Download blob to temp location
-    local_path = download_blob(blob_name, container)
-    
-    # Run standard pipeline
-    embedded_chunks = ingest_document(local_path)
-    
-    return embedded_chunks
+def ingest_from_storage(object_key: str, bucket: str = "documents") -> list[EmbeddedChunk]:
+    """Ingest a PDF directly from cloud object storage."""
+    storage = get_storage_provider()
+    local_path = storage.download(object_key, bucket=bucket)
+    return ingest_document(local_path)
 
 
-def ingest_all_blobs(container: str = "documents") -> None:
-    """Ingest all PDFs from a blob container."""
-    for blob_name in list_blobs(container):
-        if blob_name.lower().endswith(".pdf"):
-            embedded_chunks = ingest_from_blob(blob_name, container)
+def ingest_all_objects(bucket: str = "documents") -> None:
+    """Ingest all PDFs from a cloud storage bucket/container."""
+    storage = get_storage_provider()
+    for key in storage.list_objects(bucket=bucket):
+        if key.lower().endswith(".pdf"):
+            embedded_chunks = ingest_from_storage(key, bucket)
             upsert_embeddings(embedded_chunks)
-            logger.info(f"Ingested from blob: {blob_name} ({len(embedded_chunks)} chunks)")
+            logger.info(f"Ingested: {key} ({len(embedded_chunks)} chunks)")
 
 
-def upload_and_ingest(pdf_path: Path, container: str = "documents") -> list[EmbeddedChunk]:
-    """Upload PDF to blob storage, then ingest."""
-    # Upload to blob storage for archival
-    blob_info: BlobInfo = upload_pdf(pdf_path, container)
-    logger.info(f"Uploaded to: {blob_info.url}")
+def upload_and_ingest(pdf_path: Path, bucket: str = "documents") -> list[EmbeddedChunk]:
+    """Upload PDF to object storage, then ingest from local file."""
+    storage = get_storage_provider()
+    obj_info: ObjectInfo = storage.upload(pdf_path, key=pdf_path.name, bucket=bucket)
+    logger.info(f"Uploaded to: {obj_info.url}")
     
     # Ingest from local file (faster than re-downloading)
     embedded_chunks = ingest_document(pdf_path)
@@ -84,16 +82,14 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage:")
         print("  python -m scripts.run_ingest local <pdf_directory>")
-        print("  python -m scripts.run_ingest blob [container_name]")
+        print("  python -m scripts.run_ingest cloud [bucket_name]")
         sys.exit(1)
-    
+
     mode = sys.argv[1]
-    # mode = 'local'
     if mode == "local":
-        directory = Path("/Users/andrzej.malota/Desktop/andrzej/TeslaRAG/data/")
-        # directory = Path(sys.argv[2])
+        directory = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("data/")
         for pdf_path in directory.glob("*.pdf"):
             upload_and_ingest(pdf_path)
-    elif mode == "blob":
-        container = sys.argv[2] if len(sys.argv) > 2 else "documents"
-        ingest_all_blobs(container)
+    elif mode == "cloud":
+        bucket = sys.argv[2] if len(sys.argv) > 2 else "documents"
+        ingest_all_objects(bucket)

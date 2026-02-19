@@ -1,1 +1,9 @@
-# Configuration settings
+# Cloud provider configuration
+# Values here are overridden by environment variables of the same name.
+#
+# Supported providers:
+#   STORAGE_PROVIDER: aws | azure
+#   SEARCH_PROVIDER:  aws | azure
+
+STORAGE_PROVIDER: aws
+SEARCH_PROVIDER: aws

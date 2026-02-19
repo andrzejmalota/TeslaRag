@@ -4,8 +4,16 @@ requests
 bs4
 markdown
 llama-index
-azure-storage-blob
-azure-identity
-azure-identity
 python-dotenv
 pdfplumber
+pyyaml
+
+# Azure providers (install when STORAGE_PROVIDER=azure or SEARCH_PROVIDER=azure)
+azure-storage-blob
+azure-identity
+azure-search-documents
+
+# AWS providers (install when STORAGE_PROVIDER=aws or SEARCH_PROVIDER=aws)
+boto3
+opensearch-py
+requests-aws4auth
